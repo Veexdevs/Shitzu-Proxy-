@@ -102,7 +102,7 @@ public class FloatingService extends Service {
         panelContainer.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         panelView.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         panelContainer.addView(panelView);
-        TextView handle = UiHelper.text(this, "↘", 14, UiHelper.WHITE, true);
+        TextView handle = UiHelper.text(this, "\u2198", 14, UiHelper.WHITE, true);
         handle.setGravity(Gravity.CENTER);
         FrameLayout.LayoutParams handleParams = new FrameLayout.LayoutParams(UiHelper.dp(this, 30), UiHelper.dp(this, 30), Gravity.BOTTOM | Gravity.END);
         handleParams.setMargins(0, 0, UiHelper.dp(this, 4), UiHelper.dp(this, 4));
