@@ -18,7 +18,7 @@ import android.widget.TextView;
 public class FloatingService extends Service {
     private WindowManager windowManager;
     private View bubbleView;
-    private View panelContainer;
+    private FrameLayout panelContainer;
     private WindowManager.LayoutParams bubbleParams;
     private WindowManager.LayoutParams panelParams;
     private boolean panelVisible;
