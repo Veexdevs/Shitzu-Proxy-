@@ -14,10 +14,11 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.TextView;
 public class FloatingService extends Service {
     private WindowManager windowManager;
     private View bubbleView;
-    private View panelView;
+    private View panelContainer;
     private WindowManager.LayoutParams bubbleParams;
     private WindowManager.LayoutParams panelParams;
     private boolean panelVisible;
@@ -34,7 +35,7 @@ public class FloatingService extends Service {
         createBubble();
         createPanel();
         panelVisible = false;
-        panelView.setVisibility(View.GONE);
+        panelContainer.setVisibility(View.GONE);
     }
     @Override
     public void onDestroy() {
@@ -42,8 +43,8 @@ public class FloatingService extends Service {
         if (bubbleView != null) {
             windowManager.removeView(bubbleView);
         }
-        if (panelView != null) {
-            windowManager.removeView(panelView);
+        if (panelContainer != null) {
+            windowManager.removeView(panelContainer);
         }
     }
     private void startForegroundServiceWithNotification() {
@@ -61,17 +62,18 @@ public class FloatingService extends Service {
     private void createBubble() {
         bubbleParams = new WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
         bubbleParams.gravity = Gravity.TOP | Gravity.START;
-        bubbleParams.x = 100;
-        bubbleParams.y = 300;
+        bubbleParams.x = 80;
+        bubbleParams.y = 240;
         FrameLayout container = new FrameLayout(this);
         ImageView image = new ImageView(this);
         image.setImageResource(R.drawable.logo_circle);
         image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        int size = UiHelper.dp(this, 56);
+        int size = UiHelper.dp(this, 48);
         FrameLayout.LayoutParams imageParams = new FrameLayout.LayoutParams(size, size);
         image.setLayoutParams(imageParams);
-        image.setBackground(UiHelper.roundedStroke(UiHelper.DARK, UiHelper.RED, 28, this));
+        image.setBackground(UiHelper.roundedStroke(UiHelper.DARK, UiHelper.RED, 24, this));
         image.setClipToOutline(true);
+        image.setElevation(UiHelper.dp(this, 8));
         container.addView(image);
         bubbleView = container;
         windowManager.addView(bubbleView, bubbleParams);
@@ -82,27 +84,49 @@ public class FloatingService extends Service {
             }
             bubbleMoved = false;
         });
+        bubbleView.setOnLongClickListener(v -> {
+            stopSelf();
+            return true;
+        });
     }
     private void createPanel() {
-        panelParams = new WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
+        int width = UiHelper.dp(this, 360);
+        int height = UiHelper.dp(this, 380);
+        panelParams = new WindowManager.LayoutParams(width, height, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
         panelParams.gravity = Gravity.TOP | Gravity.START;
-        panelParams.x = 40;
-        panelParams.y = 200;
+        panelParams.x = 30;
+        panelParams.y = 160;
         PanelBuilder builder = new PanelBuilder(this);
-        panelView = builder.build(this::hidePanel);
-        windowManager.addView(panelView, panelParams);
+        View panelView = builder.build(this::hidePanel, this::deletePanel);
+        panelContainer = new FrameLayout(this);
+        panelContainer.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        panelView.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        panelContainer.addView(panelView);
+        TextView handle = UiHelper.text(this, "↘", 14, UiHelper.WHITE, true);
+        handle.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams handleParams = new FrameLayout.LayoutParams(UiHelper.dp(this, 30), UiHelper.dp(this, 30), Gravity.BOTTOM | Gravity.END);
+        handleParams.setMargins(0, 0, UiHelper.dp(this, 4), UiHelper.dp(this, 4));
+        handle.setLayoutParams(handleParams);
+        handle.setBackground(UiHelper.rounded(UiHelper.RED, 8, this));
+        handle.setElevation(UiHelper.dp(this, 6));
+        panelContainer.addView(handle);
+        windowManager.addView(panelContainer, panelParams);
         View header = builder.getHeader();
         if (header != null) {
-            enableHeaderDrag(header, panelParams, panelView);
+            enableHeaderDrag(header, panelParams, panelContainer);
         }
+        enableResize(handle, panelParams, panelContainer);
     }
     private void togglePanel() {
         panelVisible = !panelVisible;
-        panelView.setVisibility(panelVisible ? View.VISIBLE : View.GONE);
+        panelContainer.setVisibility(panelVisible ? View.VISIBLE : View.GONE);
     }
     private void hidePanel() {
         panelVisible = false;
-        panelView.setVisibility(View.GONE);
+        panelContainer.setVisibility(View.GONE);
+    }
+    private void deletePanel() {
+        stopSelf();
     }
     private void enableBubbleDrag(View view, WindowManager.LayoutParams params) {
         final float[] startTouch = new float[2];
@@ -144,6 +168,44 @@ public class FloatingService extends Service {
             if (event.getAction() == MotionEvent.ACTION_MOVE) {
                 params.x = startPos[0] + (int) (event.getRawX() - startTouch[0]);
                 params.y = startPos[1] + (int) (event.getRawY() - startTouch[1]);
+                windowManager.updateViewLayout(panel, params);
+                return true;
+            }
+            return false;
+        });
+    }
+    private void enableResize(View handle, WindowManager.LayoutParams params, View panel) {
+        final float[] startTouch = new float[2];
+        final int[] startSize = new int[2];
+        handle.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                startTouch[0] = event.getRawX();
+                startTouch[1] = event.getRawY();
+                startSize[0] = params.width;
+                startSize[1] = params.height;
+                return true;
+            }
+            if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                int newWidth = startSize[0] + (int) (event.getRawX() - startTouch[0]);
+                int newHeight = startSize[1] + (int) (event.getRawY() - startTouch[1]);
+                int minWidth = UiHelper.dp(this, 280);
+                int minHeight = UiHelper.dp(this, 320);
+                int screenWidth = getResources().getDisplayMetrics().widthPixels;
+                int screenHeight = getResources().getDisplayMetrics().heightPixels;
+                if (newWidth < minWidth) {
+                    newWidth = minWidth;
+                }
+                if (newHeight < minHeight) {
+                    newHeight = minHeight;
+                }
+                if (newWidth > screenWidth) {
+                    newWidth = screenWidth;
+                }
+                if (newHeight > screenHeight) {
+                    newHeight = screenHeight;
+                }
+                params.width = newWidth;
+                params.height = newHeight;
                 windowManager.updateViewLayout(panel, params);
                 return true;
             }
